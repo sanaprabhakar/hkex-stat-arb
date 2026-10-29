@@ -59,23 +59,11 @@ st.markdown("""
 # 2. Sidebar Controls
 st.sidebar.markdown("## Execution Controls")
 
-pair_choice = st.sidebar.selectbox(
-    "Target HKEX Equity Pair",
-    [
-        "HSBC (0005.HK) vs StanChart (2888.HK)",
-        "Tencent (0700.HK) vs Alibaba (9988.HK)",
-        "China Mobile (0941.HK) vs China Telecom (0728.HK)"
-    ],
-    index=0
-)
+st.sidebar.markdown("**Target HKEX Equity Pair**")
+st.sidebar.info("🏦 **HSBC (`0005.HK`) vs. StanChart (`2888.HK`)**\n\n*Dual-Listed Banking Benchmark*")
 
-ticker_map = {
-    "HSBC (0005.HK) vs StanChart (2888.HK)": ("0005.HK", "2888.HK", "HSBC", "StanChart"),
-    "Tencent (0700.HK) vs Alibaba (9988.HK)": ("0700.HK", "9988.HK", "Tencent", "Alibaba"),
-    "China Mobile (0941.HK) vs China Telecom (0728.HK)": ("0941.HK", "0728.HK", "ChinaMobile", "ChinaTelecom")
-}
-
-ticker_y, ticker_x, label_y, label_x = ticker_map[pair_choice]
+pair_choice = "HSBC (0005.HK) vs StanChart (2888.HK)"
+ticker_y, ticker_x, label_y, label_x = "0005.HK", "2888.HK", "HSBC", "StanChart"
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### Historical Sample Window")
