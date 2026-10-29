@@ -107,7 +107,6 @@ def fetch_hkex_pair(symbol_y, symbol_x, label_y, label_x):
 
 data_raw = fetch_hkex_pair(ticker_y, ticker_x, label_y, label_x)
 
-data_raw = fetch_hkex_pair(ticker_y, ticker_x)
 
 # 4. Run Quantitative Pipeline
 alpha_t, beta_t, innovations = run_kalman_filter(data_raw[label_y], data_raw[label_x])
