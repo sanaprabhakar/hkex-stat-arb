@@ -75,15 +75,12 @@ st.sidebar.markdown(
             HSBC <span style="color: #58a6ff; font-weight: 400;">vs</span> Standard Chartered
         </div>
         <div style="color: #8b949e; font-size: 11px; margin-top: 3px; font-family: monospace;">
-            HKEX: 0005.HK · 2888.HK
+            HKEX: 0005.HK <span style="color: #58a6ff;">vs</span> 2888.HK
         </div>
     </div>
     """,
     unsafe_allow_html=True
 )
-
-pair_choice = "HSBC (0005.HK) vs StanChart (2888.HK)"
-ticker_y, ticker_x, label_y, label_x = "0005.HK", "2888.HK", "HSBC", "StanChart"
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### Historical Sample Window")
