@@ -4,13 +4,12 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import datetime
 
 from src.kalman import run_kalman_filter, calculate_rolling_zscore
 from src.backtest import run_pairs_backtest
 from src.metrics import calculate_performance_metrics, compute_breakeven_frontier
 
-# 1. Page Configuration & Institutional Theme
+# 1. Page Configuration & Theme
 st.set_page_config(
     page_title="HKEX Statistical Arbitrage Terminal",
     page_icon="📈",
@@ -91,30 +90,29 @@ slippage_bps = st.sidebar.slider("Bid-Ask Spread Slippage (bps)", 0, 10, 2, 1)
 slippage_rate = slippage_bps / 10000.0
 
 borrow_rate = st.sidebar.slider("Annual Short Borrow Fee (%)", 0.0, 5.0, 2.0, 0.5) / 100.0
-exchange_fee = 0.0003  # Fixed SFC, AFRC, HKEX levies & broker fees
+exchange_fee = 0.0003  # Fixed SFC, AFRC, HKEX levies & clearing fees
 
-# 3. Data Ingestion Engine with Caching
+# 3. Data Ingestion Engine (Clean 5-Year Window matching Colab)
 @st.cache_data(ttl=86400)
 def fetch_hkex_pair(symbol_y, symbol_x, label_y, label_x):
-    start_date = "2019-01-01"
-    end_date = "2023-12-31"
+    start_date = "2021-01-01"
+    end_date = "2026-01-01"
 
-    df_y = yf.download(symbol_y, start=start_date, end=end_date, auto_adjust=True, progress=False)['Close']
-    df_x = yf.download(symbol_x, start=start_date, end=end_date, auto_adjust=True, progress=False)['Close']
-    
-    combined = pd.DataFrame({label_y: df_y.squeeze(), label_x: df_x.squeeze()}).dropna()
+    df = yf.download([symbol_y, symbol_x], start=start_date, end=end_date, progress=False)['Close']
+    df = df.rename(columns={symbol_y: label_y, symbol_x: label_x})
+    combined = df[[label_y, label_x]].dropna()
     return combined
 
 data_raw = fetch_hkex_pair(ticker_y, ticker_x, label_y, label_x)
 
-# 4. Run Quantitative Pipeline
-alpha_t, beta_t, innovations = run_kalman_filter(data_raw[label_y], data_raw[label_x])
+# 4. Quantitative Pipeline Execution
+alpha_t, beta_t, dynamic_spread = run_kalman_filter(data_raw[label_y], data_raw[label_x], delta=1e-4, ve=1.0)
 
 data = data_raw.copy()
 data['alpha_kalman'] = alpha_t
 data['beta_kalman'] = beta_t
-data['innovation'] = innovations
-data['z_score'] = calculate_rolling_zscore(innovations, window=30)
+data['dynamic_spread'] = dynamic_spread
+data['z_score'] = calculate_rolling_zscore(dynamic_spread, window=30)
 
 bt_results = run_pairs_backtest(
     data,
@@ -131,7 +129,6 @@ bt_results = run_pairs_backtest(
     annual_borrow_rate=borrow_rate
 )
 
-# Time Horizon
 n_years = len(bt_results) / 252.0
 
 # Performance Analytics
@@ -140,7 +137,6 @@ net_stats = calculate_performance_metrics(bt_results['net_strategy_ret'], bt_res
 bm_stats = calculate_performance_metrics(bt_results['benchmark_ret'], bt_results['cum_benchmark_ret'], n_years)
 
 total_friction_drag = (gross_stats['Total Return'] - net_stats['Total Return']) * 100.0
-
 fee_axis, sharpe_frontier, breakeven_fee = compute_breakeven_frontier(bt_results, n_years)
 
 # 5. Front-End Dashboard Presentation
@@ -155,7 +151,7 @@ with col1:
     <div class="metric-card">
         <div class="metric-title">Gross Strategy Return</div>
         <div class="metric-value" style="color: #00C076;">{gross_stats['Total Return']*100:.2f}%</div>
-        <div class="metric-sub">Sharpe: {gross_stats['Sharpe Ratio']:.2f} | Vol: {gross_stats['Annualized Volatility']*100:.1f}%</div>
+        <div class="metric-sub">Sharpe: {gross_stats['Sharpe Ratio']:.2f} | Vol: {gross_stats['Annualized Volatility']*100:.2f}%</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -165,7 +161,7 @@ with col2:
     <div class="metric-card">
         <div class="metric-title">Net Strategy Return</div>
         <div class="metric-value" style="color: {net_color};">{net_stats['Total Return']*100:.2f}%</div>
-        <div class="metric-sub">Sharpe: {net_stats['Sharpe Ratio']:.2f} | Max DD: {net_stats['Max Drawdown']*100:.1f}%</div>
+        <div class="metric-sub">Sharpe: {net_stats['Sharpe Ratio']:.2f} | Max DD: {net_stats['Max Drawdown']*100:.2f}%</div>
     </div>
     """, unsafe_allow_html=True)
 
