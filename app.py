@@ -59,8 +59,28 @@ st.markdown("""
 # 2. Sidebar Controls
 st.sidebar.markdown("## Execution Controls")
 
-st.sidebar.markdown("**Target HKEX Equity Pair**")
-st.sidebar.info("🏦 **HSBC (`0005.HK`) vs. StanChart (`2888.HK`)**\n\n*Dual-Listed Banking Benchmark*")
+st.sidebar.markdown(
+    """
+    <div style="
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 6px;
+        padding: 10px 12px;
+        margin-bottom: 16px;
+    ">
+        <div style="color: #8b949e; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;">
+            Asset Benchmark
+        </div>
+        <div style="color: #f0f6fc; font-size: 13px; font-weight: 600; margin-top: 3px; font-family: monospace;">
+            0005.HK <span style="color: #58a6ff;">/</span> 2888.HK
+        </div>
+        <div style="color: #8b949e; font-size: 11px; margin-top: 2px;">
+            HSBC · Standard Chartered
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 pair_choice = "HSBC (0005.HK) vs StanChart (2888.HK)"
 ticker_y, ticker_x, label_y, label_x = "0005.HK", "2888.HK", "HSBC", "StanChart"
