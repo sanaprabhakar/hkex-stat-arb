@@ -69,13 +69,13 @@ st.sidebar.markdown(
         margin-bottom: 16px;
     ">
         <div style="color: #8b949e; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;">
-            Asset Benchmark
+            Target Equity Pair
         </div>
-        <div style="color: #f0f6fc; font-size: 13px; font-weight: 600; margin-top: 3px; font-family: monospace;">
-            0005.HK <span style="color: #58a6ff;">/</span> 2888.HK
+        <div style="color: #f0f6fc; font-size: 14px; font-weight: 600; margin-top: 4px;">
+            HSBC <span style="color: #58a6ff; font-weight: 400;">vs</span> Standard Chartered
         </div>
-        <div style="color: #8b949e; font-size: 11px; margin-top: 2px;">
-            HSBC · Standard Chartered
+        <div style="color: #8b949e; font-size: 11px; margin-top: 3px; font-family: monospace;">
+            HKEX: 0005.HK · 2888.HK
         </div>
     </div>
     """,
