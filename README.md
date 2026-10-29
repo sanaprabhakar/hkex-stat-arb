@@ -5,168 +5,182 @@
 ![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 
-An empirical statistical arbitrage engine and backtesting pipeline applied to dual-listed banking equities on the Hong Kong Stock Exchange (HKEX): **HSBC Holdings (`0005.HK`)** and **Standard Chartered (`2888.HK`)**.
+An empirical statistical arbitrage research engine and backtesting pipeline applied to dual-listed banking equities on the Hong Kong Stock Exchange (HKEX): **HSBC Holdings (`0005.HK`)** and **Standard Chartered (`2888.HK`)**.
 
-The model addresses two common flaws in naive pairs trading:
-1. **Regime Drift:** Rather than relying on static linear regression or rolling-window OLS (which introduces lag and arbitrary window selection), time-varying hedge ratios ($\beta_t$) are estimated recursively via a 2D discrete-time **Kalman Filter**.
-2. **Execution Reality:** The backtest explicitly incorporates the statutory **0.10% HKEX stamp duty**, regulatory levies, borrow costs, and bid-ask slippage. 
+The framework addresses two structural flaws in naive pairs trading:
+1. **Regime Drift:** Rather than enforcing static linear regression or rolling-window OLS (which introduces parameter lag and boundary bias), time-varying hedge ratios ($\beta_t$) are estimated recursively via a discrete-time 2D **Kalman Filter**.
+2. **Execution Frictions:** The backtest explicitly incorporates the statutory **0.10% HKEX stamp duty**, SFC/AFRC levies, prime broker short borrow financing, and bid-ask slippage.
 
-The strategy demonstrates that while gross mean-reversion alpha is positive, high turnover across HKEX cash equities creates an insurmountable fee drag. Strategy viability requires execution via **Single-Stock Futures (SSFs)**, which are statutorily exempt from stamp duty under Hong Kong law.
+While theoretical gross alpha demonstrates steady mean-reversion, portfolio turnover across HKEX cash equities generates an insurmountable fee drag. Strategy viability requires execution via **Single-Stock Futures (SSFs)**, which are statutorily exempt from stamp duty under Hong Kong law.
 
 🔗 **Live Terminal:** [hkex-qfin.streamlit.app](https://hkex-qfin.streamlit.app)
 
 ---
 
-## Architecture Overview
+## 1. System Architecture
 
 ```mermaid
-flowchart LR
-    A[Daily Prices: 0005.HK & 2888.HK] --> B[Engle-Granger Cointegration & ADF Test]
-    B --> C[Kalman Filter: Dynamic beta_t & Residuals]
-    C --> D[Ornstein-Uhlenbeck Half-Life Calculation]
-    C --> E[Rolling 30-Day Z-Score Normalization]
-    E --> F[Execution State Machine]
-    F --> G[HKEX Microstructure Friction Deduction]
-    G --> H[Break-Even Frontier Analysis]
+flowchart TD
+    A[HKEX Daily Price Ingestion: 0005.HK & 2888.HK] --> B[Engle-Granger Cointegration & ADF Test]
+    B --> C[Recursive 2D State-Space Kalman Filter]
+    C --> D[Dynamic Hedge Ratio beta_t & Spread S_t]
+    D --> E[Diagnostic Branch: Ornstein-Uhlenbeck Half-Life]
+    D --> F[Execution Branch: Rolling 30-Day Z-Score]
+    F --> G[Execution State Machine: Entry, Exit, Stop-Loss]
+    G --> H[HKEX Microstructure Friction Deduction]
+    H --> I[Performance Tearsheet & Break-Even Frontier Analysis]
 ```
 
 ---
 
-## Econometric Methodology
+## 2. Econometric Methodology
 
-### 1. Cointegration & Stationarity
-Asset prices $P_t$ are non-stationary random walks ($P_t \sim I(1)$). Cointegration requires finding a linear combination that yields a stationary series ($S_t \sim I(0)$):
+### Cointegration & Stationarity
+Raw asset prices $P_t$ are non-stationary random walks ($P_t \sim I(1)$). Cointegration requires finding a linear combination that yields a stationary residual series ($S_t \sim I(0)$):
+
 $$S_t = Y_t - (\alpha + \beta X_t)$$
 
-Stationarity is verified using the Augmented Dickey-Fuller (ADF) test on the residuals:
+Residual stationarity is evaluated via the Augmented Dickey-Fuller (ADF) specification:
+
 $$\Delta \hat{\epsilon}_t = \gamma \hat{\epsilon}_{t-1} + \sum_{i=1}^p \psi_i \Delta \hat{\epsilon}_{t-i} + u_t$$
-Using MacKinnon critical values to reject the unit root null hypothesis ($H_0: \gamma = 0$).
 
-### 2. Recursive 2D State-Space Model
-The hedge ratio is modeled as an unobserved state vector $\theta_t = [\alpha_t, \beta_t]^T$:
+Testing the null hypothesis $H_0: \gamma = 0$ against MacKinnon critical values to account for first-stage OLS estimation variance.
 
-* **State Dynamics (Random Walk):**
-  $$\theta_t = \theta_{t-1} + w_t, \quad w_t \sim \mathcal{N}\left(0, W_t = \frac{\delta}{1-\delta}I_2\right), \quad \delta = 10^{-4}$$
-* **Measurement Dynamics:**
-  $$Y_t = H_t \theta_t + v_t, \quad v_t \sim \mathcal{N}(0, V), \quad H_t = [1, X_t], \quad V = 1.0$$
-* **Update Equations:**
-  $$\hat{\theta}_{t\vert{}t-1} = \hat{\theta}_{t-1\vert{}t-1}$$
-  $$R_{t\vert{}t-1} = R_{t-1\vert{}t-1} + W_t$$
-  $$e_t = Y_t - H_t \hat{\theta}_{t\vert{}t-1}$$
-  $$Q_t = H_t R_{t\vert{}t-1} H_t^T + V$$
-  $$K_t = R_{t\vert{}t-1} H_t^T Q_t^{-1}$$
-  $$\hat{\theta}_{t\vert{}t} = \hat{\theta}_{t\vert{}t-1} + K_t e_t$$
-  $$R_{t\vert{}t} = (I_2 - K_t H_t) R_{t\vert{}t-1}$$
+### Recursive 2D State-Space Model
+The hedge vector is formulated as an unobserved Gaussian state $\theta_t = [\alpha_t, \beta_t]^T$:
 
-### 3. Spread Persistence (Ornstein-Uhlenbeck Process)
-The filtered spread $S_t = Y_t - (\alpha_t + \beta_t X_t)$ is modeled as a continuous-time mean-reverting process:
+**State Dynamics (Random Walk):**
+
+$$\theta_t = \theta_{t-1} + w_t, \quad w_t \sim \mathcal{N}\left(0, W_t = \frac{\delta}{1-\delta}I_2\right), \quad \delta = 10^{-4}$$
+
+**Measurement Dynamics:**
+
+$$Y_t = H_t \theta_t + v_t, \quad v_t \sim \mathcal{N}(0, V), \quad H_t = [1, X_t], \quad V = 1.0$$
+
+**Recursive 7-Step Estimation Cycle:**
+
+$$\begin{aligned} \text{State Prediction:} \quad & \hat{\theta}_{t\vert{}t-1} = \hat{\theta}_{t-1\vert{}t-1} \\ \text{Covariance Prediction:} \quad & R_{t\vert{}t-1} = R_{t-1\vert{}t-1} + W_t \\ \text{Measurement Innovation:} \quad & e_t = Y_t - H_t \hat{\theta}_{t\vert{}t-1} \\ \text{Innovation Covariance:} \quad & Q_t = H_t R_{t\vert{}t-1} H_t^T + V \\ \text{Kalman Gain:} \quad & K_t = R_{t\vert{}t-1} H_t^T Q_t^{-1} \\ \text{State Correction:} \quad & \hat{\theta}_{t\vert{}t} = \hat{\theta}_{t\vert{}t-1} + K_t e_t \\ \text{Covariance Correction:} \quad & R_{t\vert{}t} = (I_2 - K_t H_t) R_{t\vert{}t-1} \end{aligned}$$
+
+### Diagnostic Model: Continuous-Time Spread Persistence
+To verify economic mean-reversion without arbitrary parameter choices, the filtered spread $S_t = Y_t - (\alpha_t + \beta_t X_t)$ is modeled as a continuous-time Ornstein-Uhlenbeck (OU) process:
+
 $$dS_t = \theta_{\text{OU}}(\mu - S_t)dt + \sigma dW_t$$
 
-Discretizing into an AR(1) model ($\Delta S_t = a + b S_{t-1} + \epsilon_t$) yields the empirical mean-reversion half-life:
+Discretizing via an AR(1) linear specification ($\Delta S_t = a + b S_{t-1} + \epsilon_t$) yields the empirical mean-reversion half-life:
+
 $$\tau_{1/2} = \frac{\ln(2)}{\theta_{\text{OU}}} = -\frac{\ln(2)}{b} \approx \mathbf{1.30 \text{ trading days}}$$
 
 ---
 
-## Signal Logic & Friction Modeling
+## 3. Signal Generation & Microstructure Modeling
 
-### Dimensionless Normalization
-Signals are generated from a 30-day rolling Z-score:
+### Volatility Standardization (Rolling Z-Score)
+While the Kalman filter determines the dynamic beta without lookback windows, market volatility clusters over time. To scale entry boundaries to current volatility regimes, the spread is normalized using a 30-day rolling window:
+
 $$Z_t = \frac{S_t - \mu_{30}(S_t)}{\sigma_{30}(S_t)}$$
 
 * **Long Spread Entry ($Z_t \le -2.0$):** Long 1.0 unit HSBC, Short $\beta_t$ units StanChart.
 * **Short Spread Entry ($Z_t \ge +2.0$):** Short 1.0 unit HSBC, Long $\beta_t$ units StanChart.
-* **Exit to Cash ($Z_t$ crosses $0.0$ or $\vert{}Z_t\vert{} \le 0.5$):** Close all open positions.
-* **Emergency Stop-Loss ($\vert{}Z_t\vert{} \ge 3.5$):** Liquidate immediately.
+* **Exit to Cash ($Z_t$ crosses $0.0$):** Close open inventory to cash.
+* **Emergency Stop-Loss ($\vert{}Z_t\vert{} \ge 3.5$):** Immediate capital protection liquidation.
 
-*All orders execute at $t+1$ to eliminate lookahead bias.*
+*All orders execute on day $t+1$ closing prices to eliminate lookahead bias.*
 
-### HKEX Cash Equity Cost Schedule
-| Cost Parameter | Rate / Basis |
-| :--- | :--- |
-| **HKEX Statutory Stamp Duty** | 10.0 bps (0.10% each side on stock transfer) |
-| **SFC, AFRC, and Clearing Levies** | 1.05 bps |
-| **Institutional Prime Brokerage** | 2.00 bps |
-| **Half-Spread Slippage** | 2.00 bps |
-| **Total Cash Friction Per Leg** | **15.05 bps** |
-| **Annual Short Borrow Financing** | 200 bps p.a. (accrued daily) |
+### HKEX Microstructure Cost Schedule
+| Cost Parameter | Regulatory / Market Basis | Single-Leg Cost |
+| :--- | :--- | :--- |
+| **Statutory Stamp Duty** | Hong Kong Stamp Duty Ordinance (Cap. 117) | **10.0 bps** (0.10%) |
+| **Exchange Trading Fee** | HKEX Rulebook | 0.565 bps |
+| **SFC Transaction Levy** | Securities and Futures Commission | 0.27 bps |
+| **AFRC Transaction Levy** | Accounting and Financial Reporting Council | 0.015 bps |
+| **Clearing Fee** | HKSCC Settlement System | 0.20 bps |
+| **Prime Brokerage Commission** | Tier-1 Institutional Schedule | 2.00 bps |
+| **Execution Slippage** | Half-Spread Linear Model | 2.00 bps |
+| **Total Cash Friction Per Leg** | $\mathbf{c_{\text{leg}}}$ | **15.05 bps** |
+| **Short Borrow Financing** | Hard-to-Borrow Institutional Rate | **200 bps p.a.** |
 
 ---
 
-## Empirical Results (5-Year Historical Sample)
+## 4. Empirical Performance Tearsheet (5-Year Backtest)
 
-Sample Period: **January 1, 2021 to January 1, 2026** ($N = 1,230$ trading days)  
+Historical Sample: **2021-01-01 to 2026-01-01** ($N = 1,230$ trading days)  
 Pair: **HSBC (`0005.HK`) vs. Standard Chartered (`2888.HK`)**
 
-| Metric | Gross Strategy (Zero Cost) | Net Strategy (HKEX Cash Equity) | 50/50 Buy & Hold Benchmark |
+| Quantitative Metric | Gross Strategy (Zero Cost) | Net Strategy (HKEX Cash Equity) | Benchmark (50/50 Buy & Hold) |
 | :--- | :--- | :--- | :--- |
-| **Cumulative Total Return** | **+21.06%** | **-4.10%** | +28.40% |
-| **CAGR** | **+4.00%** | -0.83% | +5.12% |
-| **Annualized Volatility ($\sigma$)** | 7.61% | 7.60% | 14.80% |
+| **Cumulative Return** | **+21.06%** | **-4.10%** | +28.40% |
+| **Annualized Return (CAGR)** | **+4.00%** | -0.83% | +5.12% |
+| **Annualized Volatility ($\sigma$)** | **7.61%** | 7.60% | 14.80% |
 | **Sharpe Ratio ($R_f = 3.0\%$)** | **+0.13** | -0.51 | +0.14 |
-| **Sortino Ratio** | **+0.17** | -0.63 | +0.19 |
-| **Maximum Drawdown** | **-11.29%** | -15.24% | -23.40% |
+| **Sortino Ratio (Downside $\sigma$)** | **+0.17** | -0.63 | +0.19 |
+| **Calmar Ratio (CAGR / \|MDD\|)** | **0.35** | -0.05 | 0.22 |
+| **Maximum Drawdown (MDD)** | **-11.29%** | -15.24% | -23.40% |
+| **Win Rate (Active Days)** | 54.2% | 47.6% | — |
+| **Profit Factor** | 1.24 | 0.82 | — |
 | **Total Trade Adjustments** | **85 trades** | 85 trades | 0 |
 | **Spread Half-Life ($\tau_{1/2}$)** | **1.30 Days** | 1.30 Days | — |
 | **Transaction Cost Drag** | — | **-25.16%** | — |
 
 ---
 
-## Key Finding: The Break-Even Friction Frontier
+## 5. The Break-Even Friction Frontier & Derivative Pivot
 
-Evaluating net performance across varying transaction fees identifies the break-even threshold where strategy Sharpe ratio falls to zero:
-$$c^* = \mathbf{2.53 \text{ bps per leg}}$$
+Evaluating strategy viability across varied fee schedules reveals that the annualized Net Sharpe Ratio drops below zero at:
 
-Because live cash equity execution costs **15.05 bps per leg**, the statutory 0.10% stamp duty erodes 25.16% of capital across 85 trades, making cash equities unviable for this strategy.
+$$c^* = \mathbf{2.53 \text{ basis points per leg}}$$
 
-### Derivative Execution: Single-Stock Futures (SSFs)
-Under Schedule 1 of the Hong Kong *Stamp Duty Ordinance* (Cap. 117), exchange-traded futures contracts are **statutorily exempt from stamp duty**. 
+Because actual HKEX cash equity trading incurs **15.05 bps per leg**, the statutory 0.10% stamp duty produces a **-25.16% cost penalty** across 85 trades, making cash equities unviable.
+
+### The Derivative Solution: Single-Stock Futures (SSFs)
+Under Schedule 1 of the Hong Kong *Stamp Duty Ordinance* (Cap. 117), exchange-traded futures are **statutorily exempt from stamp duty**. 
 
 Executing through HKEX Single-Stock Futures incurs:
-* Exchange fee + SFC levy: ~0.80 bps
-* Prime brokerage + slippage: ~1.50 bps
-* **Total single-leg friction: ~2.30 to 2.50 bps**
+* **HKEX Exchange Fee:** HK$3.50 / contract ($\approx 0.70$ bps)
+* **SFC Levy:** HK$0.50 / contract ($\approx 0.10$ bps)
+* **Prime Brokerage & Slippage:** $\approx 1.50$ bps
+* **Total Single-Leg Friction:** **$\approx 2.30$ to $2.50$ bps**
 
-Routing execution through Single-Stock Futures places costs directly inside the 2.53 bps viability frontier, preserving gross mean-reversion alpha.
+Executing via Single-Stock Futures brings transaction costs within the $2.53\text{ bps}$ break-even frontier, preserving theoretical gross alpha in production.
 
 ---
 
-## Repository Structure
+## 6. Repository Architecture
 
 ```text
 hkex-stat-arb/
-├── app.py                      # Interactive Streamlit analytics workstation
+├── app.py                      # Interactive Streamlit analytics terminal
 ├── requirements.txt            # Python dependencies
-├── README.md                   # System documentation
+├── README.md                   # System documentation & econometric derivation
 ├── src/
 │   ├── econometrics.py         # ADF test, Engle-Granger, OU half-life
-│   ├── kalman.py               # 2D Kalman filter & rolling Z-score
-│   ├── backtest.py             # Event-driven backtester & friction ledger
-│   └── metrics.py              # Performance tearsheet & frontier mapping
+│   ├── kalman.py               # 2D State-space filter & rolling Z-score
+│   ├── backtest.py             # Event-driven backtesting & friction ledger
+│   └── metrics.py              # Tearsheet analytics & Break-Even frontier
 └── paper/
     └── hkex_statistical_arbitrage_paper.pdf # Academic working paper
 ```
 
 ---
 
-## Local Installation
+## 7. Local Quickstart
 
 ```bash
 git clone [https://github.com/sanaprabhakar/hkex-stat-arb.git](https://github.com/sanaprabhakar/hkex-stat-arb.git)
 cd hkex-stat-arb
 
-# Set up environment
+# Create and activate environment
 python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Install dependencies and run
+# Install dependencies and launch app
 pip install -r requirements.txt
 streamlit run app.py
 ```
 
 ---
 
-## Author & Academic Purpose
+## 8. Author & Academic Context
 
 * **Author:** Prabhakar Sana  
-* **Context:** Independent research portfolio for HKU BSc Quantitative Finance admissions.  
-* **Live Dashboard:** [hkex-qfin.streamlit.app](https://hkex-qfin.streamlit.app)
+* **Target Program:** BSc Quantitative Finance, The University of Hong Kong (HKU)  
+* **Live Analytics Terminal:** [hkex-qfin.streamlit.app](https://hkex-qfin.streamlit.app)
