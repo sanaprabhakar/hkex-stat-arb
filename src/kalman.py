@@ -67,4 +67,4 @@ def calculate_rolling_zscore(residuals, window=30):
     
     z_score = (res_series - rolling_mean) / rolling_std
     return z_score.fillna(0).values
-```[cite: 6, 7]
+
