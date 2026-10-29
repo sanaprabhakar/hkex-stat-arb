@@ -96,11 +96,11 @@ exchange_fee = 0.0003  # Fixed SFC, AFRC, HKEX levies & broker fees
 # 3. Data Ingestion Engine with Caching
 @st.cache_data(ttl=86400)
 def fetch_hkex_pair(symbol_y, symbol_x, label_y, label_x):
-    start_date = "2021-01-01"
-    end_date = datetime.datetime.today().strftime('%Y-%m-%d')
+start_date = "2019-01-01"
+end_date = "2023-12-31"
 
-    df_y = yf.download(symbol_y, start=start_date, end=end_date, auto_adjust=True, progress=False)['Close']
-    df_x = yf.download(symbol_x, start=start_date, end=end_date, auto_adjust=True, progress=False)['Close']
+df_y = yf.download(symbol_y, start=start_date, end=end_date, auto_adjust=True, progress=False)['Close']
+df_x = yf.download(symbol_x, start=start_date, end=end_date, auto_adjust=True, progress=False)['Close']
     
     combined = pd.DataFrame({label_y: df_y.squeeze(), label_x: df_x.squeeze()}).dropna()
     return combined
