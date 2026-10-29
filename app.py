@@ -82,6 +82,9 @@ st.sidebar.markdown(
     unsafe_allow_html=True
 )
 
+pair_choice = "HSBC (0005.HK) vs StanChart (2888.HK)"
+ticker_y, ticker_x, label_y, label_x = "0005.HK", "2888.HK", "HSBC", "StanChart"
+
 st.sidebar.markdown("---")
 st.sidebar.markdown("### Historical Sample Window")
 col_d1, col_d2 = st.sidebar.columns(2)
