@@ -51,7 +51,7 @@ def run_pairs_backtest(
     # 3. Calculate Returns
     data['ret_y'] = data[y_col].pct_change().fillna(0)
     data['ret_x'] = data[x_col].pct_change().fillna(0)
-    beta_lag = data[beta_col].shift(1).fillna(method='bfill')
+    beta_lag = data[beta_col].shift(1).bfill().fillna(0.7)
     
     # Gross Strategy Daily Return = Position * (Ret_Y - Beta * Ret_X)
     data['strategy_ret'] = data['strategy_position'] * (data['ret_y'] - beta_lag * data['ret_x'])
