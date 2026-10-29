@@ -59,13 +59,33 @@ $$Y_t = H_t \theta_t + v_t, \quad v_t \sim \mathcal{N}(0, V), \quad H_t = [1, X_
 
 **Recursive 7-Step Estimation Cycle:**
 
-* **1. State Prediction:** $\hat{\theta}_{t|t-1}$ = $\hat{\theta}_{t-1|t-1}$
-* **2. Covariance Prediction:** $R_{t|t-1} = R_{t-1|t-1} + W_t$
-* **3. Measurement Innovation:** $e_t = Y_t - H_t \hat{\theta}_{t|t-1}$
-* **4. Innovation Covariance:** $Q_t = H_t R_{t|t-1} H_t^T + V$
-* **5. Kalman Gain:** $K_t = R_{t|t-1} H_t^T Q_t^{-1}$
-* **6. State Correction:** $\hat{\theta}_{t|t}$ = $\hat{\theta}_{t|t-1} + K_t e_t$
-* **7. Covariance Correction:** $R_{t|t} = (I_2 - K_t H_t) R_{t|t-1}$
+$$
+\hat{\theta}_{t|t-1} = \hat{\theta}_{t-1|t-1} \quad \text{[1. State Prediction]}
+$$
+
+$$
+R_{t|t-1} = R_{t-1|t-1} + W_t \quad \text{[2. Covariance Prediction]}
+$$
+
+$$
+e_t = Y_t - H_t \hat{\theta}_{t|t-1} \quad \text{[3. Measurement Innovation]}
+$$
+
+$$
+Q_t = H_t R_{t|t-1} H_t^T + V \quad \text{[4. Innovation Covariance]}
+$$
+
+$$
+K_t = R_{t|t-1} H_t^T Q_t^{-1} \quad \text{[5. Kalman Gain]}
+$$
+
+$$
+\hat{\theta}_{t|t} = \hat{\theta}_{t|t-1} + K_t e_t \quad \text{[6. State Correction]}
+$$
+
+$$
+R_{t|t} = (I_2 - K_t H_t) R_{t|t-1} \quad \text{[7. Covariance Correction]}
+$$
 
 ### Diagnostic Model: Continuous-Time Spread Persistence
 To verify economic mean-reversion without arbitrary parameter choices, the filtered spread $S_t = Y_t - (\alpha_t + \beta_t X_t)$ is modeled as a continuous-time Ornstein-Uhlenbeck (OU) process:
