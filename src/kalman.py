@@ -1,33 +1,38 @@
 import numpy as np
 import pandas as pd
 
-def run_kalman_filter(y_series, x_series, delta=1e-4, ve=1e-3):
+def run_kalman_filter(y_series, x_series, delta=1e-4, ve=1.0):
     """
-    Dynamic state-space hedge ratio estimation using a 2D Kalman Filter.
-    Measurement equation: Y_t = alpha_t + beta_t * X_t + e_t
-    State transition:     theta_t = theta_{t-1} + w_t
+    State-Space Hedge Ratio Estimation matching the pykalman specification:
+    State equation:       theta_t = theta_{t-1} + w_t,  w_t ~ N(0, W)
+    Measurement equation: Y_t = H_t * theta_t + v_t,    v_t ~ N(0, V)
+    where theta_t = [alpha_t, beta_t]^T and H_t = [1, X_t]
     """
     n = len(y_series)
     
     # State vector: [alpha, beta]
     theta = np.zeros((2, n))
     
-    # State covariance matrix R
+    # State covariance matrix Sigma
     R = np.zeros((2, 2, n))
     
-    # Process noise covariance W (modeled as random walk)
-    W = delta / (1 - delta) * np.eye(2)
+    # Process noise covariance W
+    W = delta / (1.0 - delta) * np.eye(2)
+    V = ve  # Exactly 1.0 matching pykalman
     
-    # Measurement noise variance V
-    V = ve
+    # Initial state assumptions matching Colab: initial_state_mean=[0, 0], covariance=ones((2,2))
+    theta[:, 0] = [0.0, 0.0]
+    R[:, :, 0] = np.ones((2, 2))
     
-    # Initial state assumptions
-    theta[:, 0] = [0.0, 0.7]
-    R[:, :, 0] = np.eye(2)
+    # Step 0 Update
+    H0 = np.array([1.0, x_series.iloc[0]])
+    e0 = y_series.iloc[0] - np.dot(H0, theta[:, 0])
+    Q0 = np.dot(H0, np.dot(R[:, :, 0], H0.T)) + V
+    K0 = np.dot(R[:, :, 0], H0.T) / Q0
+    theta[:, 0] = theta[:, 0] + K0 * e0
+    R[:, :, 0] = R[:, :, 0] - np.outer(K0, np.dot(H0, R[:, :, 0]))
     
-    e = np.zeros(n)      # Innovation residual (raw spread)
-    Q = np.zeros(n)      # Innovation variance
-    
+    # Recursive Kalman Filter cycle
     for t in range(1, n):
         # 1. State Prediction
         theta_pred = theta[:, t-1]
@@ -37,16 +42,16 @@ def run_kalman_filter(y_series, x_series, delta=1e-4, ve=1e-3):
         H = np.array([1.0, x_series.iloc[t]])
         
         # 3. Innovation Residual
-        e[t] = y_series.iloc[t] - np.dot(H, theta_pred)
+        e = y_series.iloc[t] - np.dot(H, theta_pred)
         
         # 4. Innovation Covariance
-        Q[t] = np.dot(H, np.dot(R_pred, H.T)) + V
+        Q = np.dot(H, np.dot(R_pred, H.T)) + V
         
         # 5. Kalman Gain
-        K = np.dot(R_pred, H.T) / Q[t]
+        K = np.dot(R_pred, H.T) / Q
         
-        # 6. State Update
-        theta[:, t] = theta_pred + K * e[t]
+        # 6. State Update (Filtered State)
+        theta[:, t] = theta_pred + K * e
         
         # 7. Covariance Update
         R[:, :, t] = R_pred - np.outer(K, np.dot(H, R_pred))
@@ -54,17 +59,18 @@ def run_kalman_filter(y_series, x_series, delta=1e-4, ve=1e-3):
     alpha = theta[0, :]
     beta = theta[1, :]
     
-    return alpha, beta, e
-
-def calculate_rolling_zscore(residuals, window=30):
-    """
-    Standardize innovation residuals using a rolling window 
-    to strictly prevent lookahead bias.
-    """
-    res_series = pd.Series(residuals)
-    rolling_mean = res_series.rolling(window=window).mean()
-    rolling_std = res_series.rolling(window=window).std()
+    # Dynamic Spread matching Colab: Y_t - (alpha_t + beta_t * X_t)
+    dynamic_spread = y_series.values - (alpha + beta * x_series.values)
     
-    z_score = (res_series - rolling_mean) / rolling_std
-    return z_score.fillna(0).values
+    return alpha, beta, dynamic_spread
 
+def calculate_rolling_zscore(spread_series, window=30):
+    """
+    Dimensionless Z-score computed on the dynamic spread over a 30-day rolling window.
+    """
+    s = pd.Series(spread_series)
+    rolling_mean = s.rolling(window=window).mean()
+    rolling_std = s.rolling(window=window).std()
+    
+    z_score = (s - rolling_mean) / rolling_std
+    return z_score.fillna(0).values
